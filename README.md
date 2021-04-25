@@ -6,9 +6,9 @@ A remix of the traditional Black Ops 2 zombies experience... adding quality of l
 
 BO4 themed image pack - Credit to 3arc and nathan3197
 
-Hitmarkers added - Credit to Jbleezy
+Hitmarkers added - Credit to mjkzy
 
-Health bar added - Credit to mjkzy
+Health bar added - Credit to Jbleezy
 
 Players
 - Default health set to 150
