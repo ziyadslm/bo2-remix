@@ -1,6 +1,6 @@
 # About
 
-A remix of the traditional Black Ops 2 zombies experience... adding quality of life improvments, various gameplay tweaks and Black Ops 4 inspired perk changes.
+A remix of the traditional Black Ops 2 zombies experience... adding quality of life improvements, various gameplay tweaks and Black Ops 4 inspired perk changes.
 
 # General:
 
@@ -46,14 +46,14 @@ Juggernog
 - Perk removed on Nuketown, Die Rise, and Buried
 
 Tombstone
-- Players receieve a speed bost when they are at low health
+- Players receive a speed boost when they are at low health
 - Removed suicide option when down
 
 Stamin-up
 - Unlimited sprint
 
 Deadshot
-- Hipfire accuracy significantly buffed
+- Hip-fire accuracy significantly improved
 
 Electric cherry
 - Reload-spam cooldown removed
