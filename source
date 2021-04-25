@@ -1,0 +1,406 @@
+#include maps/mp/_utility;
+#include common_scripts/utility;
+#include maps/mp/zombies/_zm;
+#include maps/mp/zombies/_zm_stats;
+#include maps/mp/zombies/_zm_utility;
+#include maps/mp/gametypes_zm/_hud_util;
+#include maps/mp/gametypes_zm/_hud_message;
+
+// Credit to Jbleezy for the health bar hud
+// Credit to mjkzy for the hitmarkers
+
+init()
+{
+    setDvar("player_strafeSpeedScale", 1);
+    setDvar("player_sprintStrafeSpeedScale", 1);
+    setDvar("player_backSpeedScale", 1);
+    setDvar("jump_slowdownEnable", 0); 
+    
+    precacheshader("damage_feedback");
+    maps/mp/zombies/_zm_spawner::register_zombie_damage_callback(::do_hitmarker);
+    maps/mp/zombies/_zm_spawner::register_zombie_death_event_callback(::do_hitmarker_death);
+    level.redHm = getDvarIntDefault( "redHitmarkers", 1 );
+    
+    level.pers_upgrades = [];
+    level.pers_upgrades_keys = [];
+	
+	// Tombstone fix
+	level.playersuicideallowed = undefined;
+	
+	// Default health
+	level.cmPlayerMaxHealth = getDvarIntDefault( "cmPlayerMaxHealth", 150 );
+	
+	// Jugg fix
+	level.cmPerkJuggHealth = getDvarIntDefault( "cmPerkJuggHealth", 150 );
+	level.zombie_vars[ "zombie_perk_juggernaut_health" ] = level.cmPerkJuggHealth;	
+    
+    // Deadshot
+  level.cmPerkDeadshotAccuracyModifier = getDvarFloatDefault( "cmPerkDeadshotAccuracyModifier", 0.1);
+	setdvar( "perk_weapSpreadMultiplier", level.cmPerkDeadshotAccuracyModifier );	
+
+    if(getdvar("mapname") == "zm_transit")
+    {
+    	if(is_classic())
+    	{
+    	    level.power_local_doors_globally = 1;
+            level.etrap_damage = maps/mp/zombies/_zm::ai_zombie_health(255);
+            level thread screecherSpawn();
+        }
+        else
+        {
+            level.zombie_include_weapons[ "jetgun_zm" ] = 1;
+       		level.zombie_weapons[ "jetgun_zm" ].is_in_box = 1;
+       		level.zombie_include_weapons[ "riotshield_zm" ] = 1;
+       		level.zombie_weapons[ "riotshield_zm" ].is_in_box = 1;
+       	}
+    }
+    else if(getdvar("mapname") == "zm_highrise")
+    {
+        level.zombie_vars[ "slipgun_max_kill_round" ] = 255;
+        level.zombie_include_weapons[ "slipgun_zm" ] = 1;
+        level.zombie_weapons[ "slipgun_zm" ].is_in_box = 1;
+        maps/mp/zombies/_zm_perks::perk_machine_removal("specialty_armorvest");
+    }
+    
+    else if(getdvar("mapname") == "zm_buried")
+    {
+        maps/mp/zombies/_zm_perks::perk_machine_removal("specialty_armorvest");
+    }
+    
+    else if(getdvar("mapname") == "zm_nuked")
+    {
+        maps/mp/zombies/_zm_perks::perk_machine_removal("specialty_armorvest");
+    }
+    
+    else if(getdvar("mapname") == "zm_tomb")
+    {
+        array_thread(getentarray("foot_box", "script_noteworthy"), ::soulBoxKills);
+    }
+    
+    level thread onPlayerConnect();
+}
+
+screecherSpawn()
+{
+    for(;;)
+    {
+        if(flag("power_on"))
+        {
+            setDvar("scr_screecher_ignore_player", 0);
+        }
+        else
+        {
+            setDvar("scr_screecher_ignore_player", 1);
+        }
+        wait 1;
+    }
+}
+
+soulBoxKills()
+{
+    self endon("box_finished");
+    for(;;)
+    {
+        self waittill("soul_absorbed");
+        if(getPlayers().size <= 1)
+        wait 0.05;
+        self.n_souls_absorbed += 20;
+        self waittill("robot_foot_stomp");
+    }
+}
+
+onPlayerConnect()
+{
+    for(;;)
+    {
+        level waittill("connected", player);
+        player iprintln("^1Bandit's Remix Mod");
+        player thread visuals();
+        player thread health();
+        player thread onPlayerSpawned();
+        if (!isDefined(player.hud_damagefeedback))
+        {
+            player thread init_player_hitmarkers();
+        }
+    }
+}
+
+visuals()
+{
+    self setClientDvar("r_fog", 0);
+    self setClientDvar("r_dof_enable", 0);
+    self setClientDvar("r_lodBiasRigid", -1000);
+	self setClientDvar("r_lodBiasSkinned", -1000);
+	self setClientDvar("r_lodScaleRigid", 1);
+	self setClientDvar("r_lodScaleSkinned", 1);
+	self useservervisionset(1);
+    self setvisionsetforplayer("remote_mortar_enhanced", 0);
+}
+
+health()
+{
+    level endon("end_game");
+    self endon("disconnect");
+	for(;;)
+	{
+		self waittill_any( "spawned_player", "player_revived", "chugabud_effects_cleanup" );
+		wait_network_frame();
+		self setMaxHealth( level.cmPlayerMaxHealth );
+		self.health = level.cmPlayerMaxHealth;
+		self.maxHealth = self.health;
+	}
+}
+
+onPlayerSpawned()
+{
+    level endon("end_game");
+    self endon("disconnect");
+    for(;;)
+    {
+        self waittill("spawned_player");
+        self.account_value = 250000;
+        
+        self.health = level.cmPlayerMaxHealth;
+		self.maxHealth = self.health;
+		self setMaxHealth( level.cmPlayerMaxHealth );
+		
+        self thread jetgun_upgrade();
+        self thread shield_perk();
+        self thread whosWho();
+        self thread electric_cherry();
+        self thread tombstone();
+        self thread buildables();
+        self thread perks();
+        self thread health_bar_hud();
+    }
+}
+
+
+jetgun_upgrade()
+{
+    level endon("end_game");
+    self endon("disconnect");
+    for(;;)
+    {
+        if(self getcurrentweapon() == "jetgun_zm" && level.sq_progress[ "rich" ][ "A_complete" ] == 1) 
+        {
+            self setweaponoverheating(0,0);
+        }  
+        wait 0.05;
+    }
+}
+
+shield_perk()
+{
+    level endon("end_game");
+    self endon("disconnect");
+    for(;;)
+    {
+        if (self hasWeapon("riotshield_zm") || ("alcatraz_shield_zm") || ("tomb_shield_zm") && self hasPerk("specialty_armorvest"))
+        {
+            self.shielddamagetaken = 0;
+        }
+        wait 0.05;
+    }
+}
+
+whosWho()
+{
+    level endon("end_game");
+    self endon("disconnect");
+    if(getdvar("mapname") == "zm_highrise")
+    {
+        for(;;)
+        {
+            self waittill("fake_revive");
+            self.pers_upgrades_awarded["revive"] = 1;
+            self setPerk("specialty_fallheight");
+            self waittill("chugabud_effects_cleanup");
+            self.pers_upgrades_awarded["revive"] = 0;
+            self unsetPerk("specialty_fallheight");
+        }
+    }
+}
+
+electric_cherry()
+{
+	level endon("end_game");
+    self endon("disconnect");
+	for (;;)
+	{
+		self.consecutive_electric_cherry_attacks = 0;
+		wait 0.5;
+	}
+}
+
+tombstone()
+{
+	level endon("end_game");
+    self endon("disconnect");
+	for (;;)
+	{
+		if (self HasPerk("specialty_scavenger") && self.health <= 30)
+		{
+			self setmovespeedscale(1.5);
+		}
+		else
+		{
+			self setmovespeedscale(1);
+		}
+		wait 0.05;
+	}
+}
+		
+buildables()
+{
+    level endon("end_game");
+    self endon("disconnect");
+	for (;;)
+	{
+		self waittill("equipment_placed", weapon, weapname);
+		if ((IsDefined(level.turret_name) && weapname == level.turret_name) || (IsDefined(level.electrictrap_name) && weapname == level.electrictrap_name) || (IsDefined(level.subwoofer_name) && weapname == level.subwoofer_name))
+		{
+			weapon.local_power = maps/mp/zombies/_zm_power::add_local_power(weapon.origin, 16);
+		}
+	}
+}
+
+perks()
+{
+    level endon("end_game");
+    self endon("disconnect");
+	for (;;)
+	{
+		self waittill_any("perk_acquired", "perk_lost");
+		
+		if (self hasPerk("specialty_additionalprimaryweapon")) // Mule kick
+		{
+			self setPerk("specialty_fastweaponswitch");
+		}
+		else
+		{
+			self unsetPerk("specialty_fastweaponswitch");
+		}
+
+		if (self hasPerk("specialty_longersprint")) // Stamin-up
+		{
+			self setPerk("specialty_unlimitedsprint");
+		}
+		else
+		{
+			self unsetPerk("specialty_unlimitedsprint");
+		}
+	}
+}
+
+health_bar_hud()
+{
+    level endon("end_game");
+    self endon("disconnect");
+	flag_wait( "initial_blackscreen_passed" );
+
+	health_bar = self createprimaryprogressbar();
+	health_bar setpoint(undefined, "BOTTOM", 0, -45);
+	health_bar.hidewheninmenu = 1;
+	health_bar.bar.hidewheninmenu = 1;
+	health_bar.barframe.hidewheninmenu = 1;
+
+	health_bar_text = self createprimaryprogressbartext();
+	health_bar_text setpoint(undefined, "BOTTOM", 0, -30);
+	health_bar_text.hidewheninmenu = 1;
+
+	while (1)
+	{
+		if (isDefined(self.e_afterlife_corpse))
+		{
+			if (health_bar.alpha != 0)
+			{
+				health_bar.alpha = 0;
+				health_bar.bar.alpha = 0;
+				health_bar.barframe.alpha = 0;
+				health_bar_text.alpha = 0;
+			}
+			
+			wait 0.05;
+			continue;
+		}
+
+		if (health_bar.alpha != 1)
+		{
+			health_bar.alpha = 1;
+			health_bar.bar.alpha = 1;
+			health_bar.barframe.alpha = 1;
+			health_bar_text.alpha = 1;
+		}
+
+		health_bar updatebar(self.health / self.maxhealth);
+		health_bar_text setvalue(self.health);
+
+		wait 0.05;
+	}
+}
+
+init_player_hitmarkers()
+{
+    self.hud_damagefeedback = newdamageindicatorhudelem( self );
+    self.hud_damagefeedback.horzalign = "center";
+    self.hud_damagefeedback.vertalign = "middle";
+    self.hud_damagefeedback.x = -12;
+    self.hud_damagefeedback.y = -12;
+    self.hud_damagefeedback.alpha = 0;
+    self.hud_damagefeedback.archived = 1;
+    self.hud_damagefeedback.color = ( 1, 1, 1 );
+    self.hud_damagefeedback setshader( "damage_feedback", 24, 48 );
+    self.hitsoundtracker = 1;
+    self.hud_damagefeedback_red = newdamageindicatorhudelem( self );
+    self.hud_damagefeedback_red.horzalign = "center";
+    self.hud_damagefeedback_red.vertalign = "middle";
+    self.hud_damagefeedback_red.x = -12;
+    self.hud_damagefeedback_red.y = -12;
+    self.hud_damagefeedback_red.alpha = 0;
+    self.hud_damagefeedback_red.archived = 1;
+    self.hud_damagefeedback_red.color = ( 1, 0, 0 );
+    self.hud_damagefeedback_red setshader( "damage_feedback", 24, 48 );
+}
+
+updatedamagefeedback( mod, inflictor, death ) //checked matches cerberus output
+{
+	if (!isplayer(self) || isDefined(self.disable_hitmarkers)) return;
+	if (isDefined(mod) && mod != "MOD_CRUSH" && mod != "MOD_GRENADE_SPLASH" && mod != "MOD_HIT_BY_OBJECT")
+	{
+		if (isDefined(inflictor))
+		{
+			self playlocalsound("mpl_hit_alert");
+		}
+		if(death && level.redHM)
+		{
+    		self.hud_damagefeedback_red setshader("damage_feedback", 24, 48);
+			self.hud_damagefeedback_red.alpha = 1;
+			self.hud_damagefeedback_red fadeovertime(1);
+			self.hud_damagefeedback_red.alpha = 0;
+		} else {
+        	self.hud_damagefeedback setshader("damage_feedback", 24, 48);
+			self.hud_damagefeedback.alpha = 1;
+			self.hud_damagefeedback fadeovertime(1);
+			self.hud_damagefeedback.alpha = 0;
+		}
+	}
+    return 0;
+}
+
+do_hitmarker_death()
+{
+	if (isDefined(self.attacker) && isplayer(self.attacker) && self.attacker != self)
+    {
+		self.attacker thread updatedamagefeedback(self.damagemod, self.attacker, 1);
+    }
+}
+
+
+do_hitmarker(mod, hitloc, hitorig, player, damage)
+{
+	if (isDefined(player) && isplayer(player) && player != self)
+    {
+		player thread updatedamagefeedback(mod, player, 0);
+    }
+}
