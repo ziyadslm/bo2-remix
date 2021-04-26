@@ -9,6 +9,7 @@
 
 init()
 {
+    level thread onPlayerConnect();
     setDvar("player_strafeSpeedScale", 1);
     setDvar("player_sprintStrafeSpeedScale", 1);
     setDvar("player_backSpeedScale", 1);
@@ -70,7 +71,6 @@ init()
         array_thread(getentarray("foot_box", "script_noteworthy"), ::soulBoxKills);
     }
     
-    level thread onPlayerConnect();
 }
 
 screecherSpawn()
@@ -144,25 +144,17 @@ onPlayerSpawned()
 {
     level endon("end_game");
     self endon("disconnect");
-    for(;;)
-    {
-        self waittill("spawned_player");
-        self.account_value = 250000;
-        self.score = 5000;
-        
-        self.health = level.cmPlayerMaxHealth;
-		self.maxHealth = self.health;
-		self setMaxHealth( level.cmPlayerMaxHealth );
-		
-        self thread jetgun_upgrade();
-        self thread shield_perk();
-        self thread whosWho();
-        self thread electric_cherry();
-        self thread tombstone();
-        self thread buildables();
-        self thread perks();
-        self thread health_bar_hud();
-    }
+    self thread jetgun_upgrade();
+    self thread shield_perk();
+    self thread whosWho();
+    self thread electric_cherry();
+    self thread tombstone();
+    self thread buildables();
+    self thread perks();
+    self thread health_bar_hud();
+    self waittill("spawned_player");
+    self.account_value = 250000;
+    self.score = 5000;
 }
 
 
@@ -186,10 +178,14 @@ shield_perk()
     self endon("disconnect");
     for(;;)
     {
-        if (self hasWeapon("riotshield_zm") || ("alcatraz_shield_zm") || ("tomb_shield_zm") && self hasPerk("specialty_armorvest"))
-        {
-            self.shielddamagetaken = 0;
-        }
+        if ( self hasPerk("specialty_armorvest") )
+	{
+		if( self hasWeapon("riotshield_zm") || self hasWeapon("alcatraz_shield_zm") || self hasWeapon("tomb_shield_zm"))
+		{
+		    self.shielddamagetaken = 0;
+		}
+	}
+	
         wait 0.05;
     }
 }
