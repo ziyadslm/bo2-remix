@@ -4,10 +4,9 @@ A remix of the traditional Black Ops 2 zombies experience... adding quality of l
 
 # General:
 
-Health bar added - Credit to Jbleezy
-
 Players
-- Default health set to 150
+- Default health set to 200
+- Health bar added (Credit to Jbleezy)
 - Bank set to full
 - Perma-perks can no longer be earned
 
