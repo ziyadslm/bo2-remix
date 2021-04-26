@@ -235,7 +235,7 @@ tombstone()
 		}
 		else
 		{
-			return;
+			self setmovespeedscale(1);
 		}
 		wait 0.05;
 	}
